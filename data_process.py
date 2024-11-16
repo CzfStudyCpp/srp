@@ -35,18 +35,11 @@ users['country'] = users['country'].replace('', np.nan)
 users['state'] = users['state'].replace('', np.nan)
 users['city'] = users['city'].replace('', np.nan)
 
-# 剔除异常年龄值并计算年龄缺省值数量
-users.loc[(users.age < 4) | (users.age > 105), 'age'] = np.nan
-age_null = users.age.isnull().sum()
-all_users = users.user_id.count()
-print(f'There are {age_null} empty age values in our set of {all_users} users (or {(age_null/all_users)*100:.2f}%).')
+# 剔除异常年龄值并剔除年龄为空的记录
+users = users[(users.age >= 4) & (users.age <= 105)]
 
-# 处理年龄的空值，使用平均年龄进行填充
-average_age = users['age'].mean()
-users['age'].fillna(average_age, inplace=True)
-
-# 剔除位置异常的记录，如位置字段为空或国家、州、市中存在无效值的记录
-invalid_location_mask = users['country'].isnull() | users['state'].isnull() | users['city'].isnull()
+# 剔除位置异常的记录，如位置字段为空或包含乱码/n/a的记录
+invalid_location_mask = users['country'].isnull() | users['state'].isnull() | users['city'].isnull() | users['country'].str.contains('n/a|unknown|[^\x00-\x7F]', case=False) | users['state'].str.contains('n/a|unknown|[^\x00-\x7F]', case=False) | users['city'].str.contains('n/a|unknown|[^\x00-\x7F]', case=False)
 users = users[~invalid_location_mask]
 
 # 选择一万名用户（若总数大于一万）
