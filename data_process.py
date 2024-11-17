@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import re
+import os
 
 # Step 1: 读取Book-Crossing用户信息数据集
 # 使用pandas的read_csv函数来读取用户数据
@@ -48,9 +49,26 @@ selected_users = users.sample(n=10000, random_state=1) if len(users) > 10000 els
 # 生成用户集合
 user_set = set(selected_users['user_id'])
 
+# 创建结果文件的子目录
+output_dir = './clean_result'
+os.makedirs(output_dir, exist_ok=True)
+
+# 将用户集合保存为文本文件
+user_set_path = os.path.join(output_dir, 'user_set.txt')
+with open(user_set_path, 'w') as f:
+    for user_id in user_set:
+        f.write(f"{user_id}\n")
+
+# 生成用户特征矩阵（DataFrame形式）
+user_matrix = selected_users.pivot_table(index='user_id', values=['age', 'city', 'state', 'country'], aggfunc='first')
+
 # 显示生成的经过清洗后的用户特征矩阵和用户集合的大小
 print(selected_users.head())
 print(f'Total number of selected users: {len(user_set)}')
+print(user_matrix.head())
 
-# 保存经过清洗后的用户特征矩阵为CSV文件
-selected_users.to_csv('cleaned_users.csv', index=False)
+# 保存经过清洗后的用户特征矩阵和用户矩阵为CSV文件
+cleaned_users_path = os.path.join(output_dir, 'cleaned_users.csv')
+user_matrix_path = os.path.join(output_dir, 'user_matrix.csv')
+selected_users.to_csv(cleaned_users_path, index=False)
+user_matrix.to_csv(user_matrix_path, index=True)
