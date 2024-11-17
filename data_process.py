@@ -43,32 +43,55 @@ users = users[(users.age >= 4) & (users.age <= 105)]
 invalid_location_mask = users['country'].isnull() | users['state'].isnull() | users['city'].isnull() | users['country'].str.contains('n/a|unknown|[^\x00-\x7F]', case=False) | users['state'].str.contains('n/a|unknown|[^\x00-\x7F]', case=False) | users['city'].str.contains('n/a|unknown|[^\x00-\x7F]', case=False)
 users = users[~invalid_location_mask]
 
-# 选择一万名用户（若总数大于一万）
-selected_users = users.sample(n=10000, random_state=1) if len(users) > 10000 else users
-
-# 生成用户集合
-user_set = set(selected_users['user_id'])
-
 # 创建结果文件的子目录
 output_dir = './clean_result'
 os.makedirs(output_dir, exist_ok=True)
 
-# 将用户集合保存为文本文件
-user_set_path = os.path.join(output_dir, 'user_set.txt')
-with open(user_set_path, 'w') as f:
-    for user_id in user_set:
-        f.write(f"{user_id}\n")
-
 # 生成用户特征矩阵（DataFrame形式）
-user_matrix = selected_users.pivot_table(index='user_id', values=['age', 'city', 'state', 'country'], aggfunc='first')
+user_matrix = users.pivot_table(index='user_id', values=['age', 'city', 'state', 'country'], aggfunc='first')
 
-# 显示生成的经过清洗后的用户特征矩阵和用户集合的大小
-print(selected_users.head())
-print(f'Total number of selected users: {len(user_set)}')
+# 显示生成的经过清洗后的用户特征矩阵
+print(users.head())
+print(f'Total number of users after cleaning: {len(users)}')
 print(user_matrix.head())
 
-# 保存经过清洗后的用户特征矩阵和用户矩阵为CSV文件
+# 保存经过清洗后的用户特征矩阵为CSV文件
 cleaned_users_path = os.path.join(output_dir, 'cleaned_users.csv')
 user_matrix_path = os.path.join(output_dir, 'user_matrix.csv')
-selected_users.to_csv(cleaned_users_path, index=False)
+users.to_csv(cleaned_users_path, index=False)
 user_matrix.to_csv(user_matrix_path, index=True)
+
+# Step 3: 读取Book-Crossing图书信息数据集
+# 使用pandas的read_csv函数来读取图书数据
+books = pd.read_csv('./BX_Books.csv', sep=';', encoding='latin-1', on_bad_lines='skip')
+
+# 处理列名，去除空格并转换为小写
+books.columns = books.columns.str.strip().str.lower().str.replace('-', '_')
+
+# 清理图书特征中的多余空格
+books['book_title'] = books['book_title'].str.strip()
+books['book_author'] = books['book_author'].str.strip()
+books['publisher'] = books['publisher'].str.strip()
+
+# 剔除包含乱码或异常值的记录
+invalid_books_mask = books['book_title'].str.contains('[^\x00-\x7F]', case=False) | \
+                     books['book_author'].str.contains('[^\x00-\x7F]', case=False) | \
+                     books['publisher'].str.contains('[^\x00-\x7F]', case=False)
+books = books[~invalid_books_mask]
+
+# 移除图书数据中的图像链接列
+books.drop(columns=['image_url_s', 'image_url_m', 'image_url_l'], inplace=True)
+
+# 保存经过清洗后的图书特征矩阵
+cleaned_books_path = os.path.join(output_dir, 'cleaned_books.csv')
+books.to_csv(cleaned_books_path, index=False)
+
+# 显示生成的经过清洗后的图书特征矩阵
+print(books.head())
+
+# 生成项目特征矩阵（DataFrame形式）
+item_matrix = books.pivot_table(index='isbn', values=['book_title', 'book_author', 'year_of_publication', 'publisher'], aggfunc='first')
+
+# 保存项目特征矩阵为CSV文件
+item_matrix_path = os.path.join(output_dir, 'item_matrix.csv')
+item_matrix.to_csv(item_matrix_path, index=True)
