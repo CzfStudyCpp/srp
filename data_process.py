@@ -39,8 +39,11 @@ users['city'] = users['city'].replace('', np.nan)
 # 剔除异常年龄值并剔除年龄为空的记录
 users = users[(users.age >= 4) & (users.age <= 105)]
 
-# 剔除位置异常的记录，如位置字段为空或包含乱码/n/a的记录
-invalid_location_mask = users['country'].isnull() | users['state'].isnull() | users['city'].isnull() | users['country'].str.contains('n/a|unknown|[^\x00-\x7F]', case=False) | users['state'].str.contains('n/a|unknown|[^\x00-\x7F]', case=False) | users['city'].str.contains('n/a|unknown|[^\x00-\x7F]', case=False)
+# 剔除位置异常的记录，如位置字段为空或包含乱码/n/a/HTML字符引用的记录
+invalid_location_mask = users['country'].isnull() | users['state'].isnull() | users['city'].isnull() | \
+                      users['country'].str.contains('n/a|unknown|[^\x00-\x7F]|&#[0-9]+;', case=False) | \
+                      users['state'].str.contains('n/a|unknown|[^\x00-\x7F]|&#[0-9]+;', case=False) | \
+                      users['city'].str.contains('n/a|unknown|[^\x00-\x7F]|&#[0-9]+;', case=False)
 users = users[~invalid_location_mask]
 
 # 创建结果文件的子目录
@@ -73,10 +76,10 @@ books['book_title'] = books['book_title'].str.strip()
 books['book_author'] = books['book_author'].str.strip()
 books['publisher'] = books['publisher'].str.strip()
 
-# 剔除包含乱码或异常值的记录
-invalid_books_mask = books['book_title'].str.contains('[^\x00-\x7F]', case=False) | \
-                     books['book_author'].str.contains('[^\x00-\x7F]', case=False) | \
-                     books['publisher'].str.contains('[^\x00-\x7F]', case=False)
+# 剔除包含乱码或异常值的记录，如HTML字符引用或非ASCII字符
+invalid_books_mask = books['book_title'].str.contains('[^\x00-\x7F]|&#[0-9]+;', case=False) | \
+                     books['book_author'].str.contains('[^\x00-\x7F]|&#[0-9]+;', case=False) | \
+                     books['publisher'].str.contains('[^\x00-\x7F]|&#[0-9]+;', case=False)
 books = books[~invalid_books_mask]
 
 # 移除图书数据中的图像链接列
