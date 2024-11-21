@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import re
 import os
+from itertools import combinations
 
 # Step 1: 读取Book-Crossing用户信息数据集
 # 使用pandas的read_csv函数来读取用户数据
@@ -46,6 +47,11 @@ invalid_location_mask = users['country'].isnull() | users['state'].isnull() | us
                       users['city'].str.contains('n/a|unknown|[^\x00-\x7F]|&#[0-9]+;', case=False)
 users = users[~invalid_location_mask]
 
+# 进一步清洗，移除所有包含 HTML 字符实体或者非 ASCII 字符的记录
+users = users[~users['country'].str.contains('&#|[^\x00-\x7F]', case=False, na=False)]
+users = users[~users['state'].str.contains('&#|[^\x00-\x7F]', case=False, na=False)]
+users = users[~users['city'].str.contains('&#|[^\x00-\x7F]', case=False, na=False)]
+
 # 创建结果文件的子目录
 output_dir = './clean_result'
 os.makedirs(output_dir, exist_ok=True)
@@ -82,6 +88,11 @@ invalid_books_mask = books['book_title'].str.contains('[^\x00-\x7F]|&#[0-9]+;', 
                      books['publisher'].str.contains('[^\x00-\x7F]|&#[0-9]+;', case=False)
 books = books[~invalid_books_mask]
 
+# 进一步清洗，移除所有包含 HTML 字符实体或者非 ASCII 字符的记录
+books = books[~books['book_title'].str.contains('&#|[^\x00-\x7F]', case=False, na=False)]
+books = books[~books['book_author'].str.contains('&#|[^\x00-\x7F]', case=False, na=False)]
+books = books[~books['publisher'].str.contains('&#|[^\x00-\x7F]', case=False, na=False)]
+
 # 移除图书数据中的图像链接列
 books.drop(columns=['image_url_s', 'image_url_m', 'image_url_l'], inplace=True)
 
@@ -98,3 +109,41 @@ item_matrix = books.pivot_table(index='isbn', values=['book_title', 'book_author
 # 保存项目特征矩阵为CSV文件
 item_matrix_path = os.path.join(output_dir, 'item_matrix.csv')
 item_matrix.to_csv(item_matrix_path, index=True)
+
+# Step 4: 读取Book-Crossing评分数据集
+# 使用pandas的read_csv函数来读取评分数据
+ratings = pd.read_csv('./BX-Book-Ratings.csv', sep=';', encoding='latin-1', on_bad_lines='skip')
+
+# 处理列名，去除空格并转换为小写
+ratings.columns = ratings.columns.str.strip().str.lower().str.replace('-', '_')
+
+# 获取评分矩阵中已评分的项目集合 I 和用户集合 U（忽略隐含评分，取评分 > 0 的记录）
+rated_items = ratings[ratings['book_rating'] > 0]['isbn'].unique()
+rated_users = ratings[ratings['book_rating'] > 0]['user_id'].unique()
+
+# 分批生成用户对集合 (upair) 和项目对集合 (ipair) 以减少内存使用
+user_pairs = []
+item_pairs = []
+
+batch_size = 1000  # 每次处理的最大组合数量
+
+# 分批生成用户对
+for i in range(0, len(rated_users), batch_size):
+    batch_users = rated_users[i:i + batch_size]
+    user_pairs.extend(list(combinations(batch_users, 2)))
+
+# 分批生成项目对
+for i in range(0, len(rated_items), batch_size):
+    batch_items = rated_items[i:i + batch_size]
+    item_pairs.extend(list(combinations(batch_items, 2)))
+
+# 保存用户对集合和项目对集合到CSV文件
+user_pairs_path = os.path.join(output_dir, 'user_pairs.csv')
+item_pairs_path = os.path.join(output_dir, 'item_pairs.csv')
+
+# 将用户对和项目对集合分别保存为CSV文件
+pd.DataFrame(user_pairs, columns=['user_1', 'user_2']).to_csv(user_pairs_path, index=False)
+pd.DataFrame(item_pairs, columns=['item_1', 'item_2']).to_csv(item_pairs_path, index=False)
+
+print(f'Total number of user pairs: {len(user_pairs)}')
+print(f'Total number of item pairs: {len(item_pairs)}')
